@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>Test d'interaction — Formation Web</title>
+<style>
+  body { font-family: ui-monospace, Consolas, monospace; font-size: 12px; margin: 0; background: #0b0f17; color: #dbe4f5; }
+  #out { white-space: pre-wrap; padding: 12px; }
+</style>
+</head>
+<body>
+<pre id="out">OK|navigation: liens de modules|
+OK|stockage: localStorage disponible|thème=dark
+OK|accueil: 3 cartes de module|cartes=3
+OK|exercice: vérification du corrigé|pass=3/3 fail=0
+OK|exercice: progression enregistrée|exerciseDone=true
+OK|exercice: aperçu live alimenté|
+OK|exercice: numéros de ligne masquables|block / none / block
+OK|exercice: brouillon mémorisé|
+OK|exercice: code incomplet refusé|fail=3
+OK|quiz: correction affichée|
+OK|quiz: score parfait|12/12
+OK|quiz: textes de correction|12/12
+OK|quiz: score affiché|
+OK|projet: vérification de l'étape|pass=5/5
+OK|leçon: marquage terminé|
+OK|thème: bascule clair/sombre|dark -&gt; light
+OK|thème: préférence mémorisée|light
+OK|guide: sections affichées|12/12
+OK|guide: sommaire cliquable|12/12
+OK|guide: sommaire n'écrase pas la route|#/guide
+OK|guide: contenu rédigé|caractères=21211
+OK|guide: repères chiffrés|stats=4
+OK|guide: entrée dans la navigation|
+OK|menu: visible au chargement (bureau)|
+OK|menu: replié après clic|largeur=1
+OK|menu: repli mémorisé|true
+OK|menu: bouton annonce l'état|Afficher le menu
+OK|menu: réouvert après second clic|largeur=272
+OK|menu: état déplié mémorisé|false
+OK|menu: liens toujours présents|
+OK|menu mobile: fermé au chargement|
+OK|menu mobile: s'ouvre au clic|
+OK|menu mobile: se ferme via le voile|
+INTERACTIONS|tests=33 fails=0</pre>
+<script>
+(function () {
+  "use strict";
+  var out = document.getElementById("out");
+  var lines = [];
+  function log(text) { lines.push(text); out.textContent = lines.join("\n"); }
+
+  function until(fn, timeout, step) {
+    timeout = timeout || 9000;
+    step = step || 100;
+    return new Promise(function (resolve) {
+      var started = Date.now();
+      (function poll() {
+        var value;
+        try { value = fn(); } catch (e) { value = false; }
+        if (value) { resolve(true); return; }
+        if (Date.now() - started > timeout) { resolve(false); return; }
+        setTimeout(poll, step);
+      })();
+    });
+  }
+
+  function openRoute(hash, width, height) {
+    return new Promise(function (resolve, reject) {
+      var frame = document.createElement("iframe");
+      frame.style.cssText = "position:fixed;left:-99999px;top:0;border:0;width:" + (width || 1280) + "px;height:" + (height || 900) + "px";
+      frame.onload = function () {
+        var win = frame.contentWindow;
+        until(function () {
+          var view = frame.contentDocument.querySelector("#view");
+          return view && view.textContent.trim().length > 40;
+        }).then(function (ok) {
+          if (!ok) { reject(new Error("page non rendue : " + hash)); return; }
+          setTimeout(function () { resolve({ frame: frame, win: win, doc: frame.contentDocument }); }, 250);
+        });
+      };
+      document.body.appendChild(frame);
+      frame.src = "../index.html" + hash;
+      setTimeout(function () { reject(new Error("délai dépassé : " + hash)); }, 12000);
+    });
+  }
+
+  function fillExercise(ctx, code) {
+    ["html", "css", "js"].forEach(function (lang) {
+      var ta = ctx.doc.querySelector('[data-input="' + lang + '"]');
+      if (!ta) return;
+      ta.value = code[lang] || "";
+      ta.dispatchEvent(new ctx.win.Event("input", { bubbles: true }));
+    });
+  }
+
+  function result(name, ok, detail) {
+    log((ok ? "OK|" : "FAIL|") + name + "|" + (detail || ""));
+  }
+
+  async function testExercise() {
+    var ctx = await openRoute("#/exercise/html-ex-01");
+    var win = ctx.win, doc = ctx.doc;
+    var entry = win.FW.store.exerciseById("html-ex-01");
+    var ex = entry.exercise;
+    fillExercise(ctx, ex.solution);
+
+    var verify = doc.querySelector("#verify");
+    if (!verify) { result("exercice: bouton Vérifier", false, "bouton absent"); ctx.frame.remove(); return; }
+    verify.click();
+
+    var expected = (ex.checks || []).length;
+    var appeared = await until(function () {
+      return doc.querySelectorAll("#checks .check").length === expected;
+    }, 12000);
+    var passes = doc.querySelectorAll("#checks .check.is-pass").length;
+    var fails = doc.querySelectorAll("#checks .check.is-fail").length;
+    result("exercice: vérification du corrigé", appeared && fails === 0 && passes === expected, "pass=" + passes + "/" + expected + " fail=" + fails);
+
+    var stored = await until(function () { return win.FW.store.exerciseDone(ex.id); }, 4000);
+    result("exercice: progression enregistrée", stored, "exerciseDone=" + stored);
+
+    var preview = doc.querySelector(".preview iframe");
+    var previewOk = !!(preview && preview.contentDocument && preview.contentDocument.body.innerHTML.trim().length > 10);
+    result("exercice: aperçu live alimenté", previewOk, "");
+
+    var numbersBtn = doc.querySelector('[data-act="numbers"]');
+    var gutter = doc.querySelector(".editor__gutter");
+    var gutterBefore = gutter ? win.getComputedStyle(gutter).display : "absent";
+    if (numbersBtn) numbersBtn.click();
+    var gutterAfter = gutter ? win.getComputedStyle(gutter).display : "absent";
+    if (numbersBtn) numbersBtn.click();
+    var gutterBack = gutter ? win.getComputedStyle(gutter).display : "absent";
+    result("exercice: numéros de ligne masquables",
+      gutterBefore !== "none" && gutterAfter === "none" && gutterBack !== "none",
+      gutterBefore + " / " + gutterAfter + " / " + gutterBack);
+
+    // brouillon sauvegardé après saisie
+    win.FW.store.setDraft("ex:" + ex.id, { html: "<p>draft</p>", css: "", js: "" });
+    var draft = win.FW.store.draft("ex:" + ex.id);
+    result("exercice: brouillon mémorisé", !!(draft && draft.html.indexOf("draft") >= 0), "");
+
+    ctx.frame.remove();
+  }
+
+  async function testBadCode() {
+    var ctx = await openRoute("#/exercise/html-ex-01");
+    var win = ctx.win, doc = ctx.doc;
+    fillExercise(ctx, { html: "<div>rien</div>", css: "", js: "" });
+    doc.querySelector("#verify").click();
+    var entry = win.FW.store.exerciseById("html-ex-01");
+    var expected = (entry.exercise.checks || []).length;
+    await until(function () { return doc.querySelectorAll("#checks .check").length === expected; }, 10000);
+    var fails = doc.querySelectorAll("#checks .check.is-fail").length;
+    result("exercice: code incomplet refusé", fails > 0, "fail=" + fails);
+    ctx.frame.remove();
+  }
+
+  async function testQuiz() {
+    var ctx = await openRoute("#/quiz/html");
+    var win = ctx.win, doc = ctx.doc;
+    var module = win.FW.store.moduleById("html");
+    var questions = module.quiz.questions;
+    questions.forEach(function (item, index) {
+      var input = doc.querySelector('input[name="q' + index + '"][value="' + item.answer + '"]');
+      if (input) {
+        input.checked = true;
+        input.dispatchEvent(new win.Event("change", { bubbles: true }));
+      }
+    });
+    var form = doc.querySelector("#quiz-form");
+    form.dispatchEvent(new win.Event("submit", { bubbles: true, cancelable: true }));
+
+    var shown = await until(function () {
+      var box = doc.querySelector("#quiz-result");
+      return box && !box.hidden;
+    }, 6000);
+    var text = doc.querySelector("#quiz-result") ? doc.querySelector("#quiz-result").textContent : "";
+    var record = win.FW.store.quizRecord("html");
+    var explainsShown = 0;
+    doc.querySelectorAll(".explain").forEach(function (node) {
+      if (!node.hidden && node.textContent.trim().indexOf("Bonne réponse") >= 0) explainsShown++;
+    });
+    result("quiz: correction affichée", shown, "");
+    result("quiz: score parfait", !!(record && record.score === questions.length), record ? record.score + "/" + questions.length : "aucun score");
+    result("quiz: textes de correction", explainsShown === questions.length, explainsShown + "/" + questions.length);
+    result("quiz: score affiché", text.indexOf(String(questions.length)) >= 0, "");
+    ctx.frame.remove();
+  }
+
+  async function testProjectStep() {
+    var ctx = await openRoute("#/projet/0");
+    var win = ctx.win, doc = ctx.doc;
+    var project = win.COURSE_PROJECT;
+    var step = project.steps[0];
+    fillExercise(ctx, step.solution);
+    var btn = doc.querySelector("#verify-step");
+    if (!btn) { result("projet: bouton présent", false, ""); ctx.frame.remove(); return; }
+    btn.click();
+    var expected = (step.checks || []).length;
+    var appeared = await until(function () {
+      return doc.querySelectorAll("#step-checks .check").length === expected;
+    }, 12000);
+    var passes = doc.querySelectorAll("#step-checks .check.is-pass").length;
+    result("projet: vérification de l'étape", appeared && passes === expected, "pass=" + passes + "/" + expected);
+    ctx.frame.remove();
+  }
+
+  async function testLessonAndTheme() {
+    var ctx = await openRoute("#/lesson/html-02");
+    var win = ctx.win, doc = ctx.doc;
+    var button = doc.querySelector("#mark-lesson");
+    if (button) button.click();
+    var done = await until(function () { return win.FW.store.lessonDone("html-02"); }, 3000);
+    result("leçon: marquage terminé", done, "");
+
+    var themeBefore = doc.documentElement.getAttribute("data-theme");
+    var toggle = doc.querySelector("#theme-toggle-top");
+    if (toggle) toggle.click();
+    var themeAfter = doc.documentElement.getAttribute("data-theme");
+    result("thème: bascule clair/sombre", themeBefore !== themeAfter, themeBefore + " -> " + themeAfter);
+    result("thème: préférence mémorisée", !!win.FW.store.theme(), String(win.FW.store.theme()));
+    ctx.frame.remove();
+  }
+
+  async function testNavigation() {
+    var ctx = await openRoute("#/");
+    var win = ctx.win, doc = ctx.doc;
+    var link = doc.querySelector('a[href="#/module/css"]');
+    var theme = doc.documentElement.getAttribute("data-theme") || "sombre";
+    var storage = win.FW.store.storageAvailable;
+    result("navigation: liens de modules", !!link, "");
+    result("stockage: localStorage disponible", !!storage, "thème=" + theme);
+    var cards = doc.querySelectorAll(".module-card").length;
+    result("accueil: 3 cartes de module", cards === 3, "cartes=" + cards);
+    ctx.frame.remove();
+  }
+
+  async function testGuide() {
+    var ctx = await openRoute("#/guide");
+    var win = ctx.win, doc = ctx.doc;
+    var sections = doc.querySelectorAll(".guide-section");
+    var guide = win.COURSE_GUIDE;
+    result("guide: sections affichées", sections.length === (guide.sections || []).length, sections.length + "/" + (guide.sections || []).length);
+
+    var links = doc.querySelectorAll('.toc a[data-anchor]');
+    result("guide: sommaire cliquable", links.length === sections.length, links.length + "/" + sections.length);
+
+    var beforeHash = win.location.hash;
+    var first = links[0];
+    if (first) {
+      first.click();
+      await new Promise(function (r) { setTimeout(r, 300); });
+    }
+    var afterHash = win.location.hash;
+    result("guide: sommaire n'écrase pas la route", beforeHash === afterHash && afterHash.indexOf("#/guide") === 0, afterHash);
+
+    var text = doc.querySelector("#view").textContent;
+    result("guide: contenu rédigé", text.length > 4000, "caractères=" + text.length);
+
+    var stats = doc.querySelectorAll(".stat").length;
+    result("guide: repères chiffrés", stats >= 4, "stats=" + stats);
+
+    var navLink = Array.prototype.some.call(doc.querySelectorAll('.nav__link'), function (a) {
+      return (a.getAttribute("href") || "") === "#/guide";
+    });
+    result("guide: entrée dans la navigation", navLink, "");
+
+    ctx.frame.remove();
+  }
+
+  async function testSidebar() {
+    var ctx = await openRoute("#/module/html", 1440, 900);
+    var win = ctx.win, doc = ctx.doc;
+    var app = doc.querySelector(".app");
+    var toggle = doc.querySelector("#menu-toggle");
+    var sidebar = doc.querySelector(".sidebar");
+
+    var visibleBefore = sidebar && sidebar.getBoundingClientRect().width > 200;
+    result("menu: visible au chargement (bureau)", visibleBefore, "");
+
+    if (toggle) toggle.click();
+    await new Promise(function (r) { setTimeout(r, 420); });
+    var collapsedWidth = sidebar.getBoundingClientRect().width;
+    var hasClass = app.classList.contains("is-collapsed");
+    result("menu: replié après clic", hasClass && collapsedWidth < 2, "largeur=" + Math.round(collapsedWidth));
+    result("menu: repli mémorisé", win.FW.store.sidebarCollapsed() === true, String(win.FW.store.sidebarCollapsed()));
+    result("menu: bouton annonce l'état", toggle.getAttribute("aria-expanded") === "false", toggle.getAttribute("aria-label"));
+
+    if (toggle) toggle.click();
+    await new Promise(function (r) { setTimeout(r, 420); });
+    var reopened = sidebar.getBoundingClientRect().width > 200;
+    result("menu: réouvert après second clic", reopened && !app.classList.contains("is-collapsed"), "largeur=" + Math.round(sidebar.getBoundingClientRect().width));
+    result("menu: état déplié mémorisé", win.FW.store.sidebarCollapsed() === false, String(win.FW.store.sidebarCollapsed()));
+
+    var navLink = doc.querySelector('.nav__link[href="#/lesson/html-03"]');
+    result("menu: liens toujours présents", !!navLink, "");
+    ctx.frame.remove();
+  }
+
+  async function testSidebarMobile() {
+    var ctx = await openRoute("#/", 390, 780);
+    var win = ctx.win, doc = ctx.doc;
+    var toggle = doc.querySelector("#menu-toggle");
+    var sidebar = doc.querySelector(".sidebar");
+    var offscreen = sidebar.getBoundingClientRect().right <= 1;
+    result("menu mobile: fermé au chargement", offscreen, "");
+
+    if (toggle) toggle.click();
+    await new Promise(function (r) { setTimeout(r, 420); });
+    var opened = sidebar.getBoundingClientRect().left > -2 && doc.body.classList.contains("nav-open");
+    result("menu mobile: s'ouvre au clic", opened, "");
+
+    var scrim = doc.querySelector("#scrim");
+    if (scrim && !scrim.hidden) scrim.click();
+    await new Promise(function (r) { setTimeout(r, 420); });
+    result("menu mobile: se ferme via le voile", !doc.body.classList.contains("nav-open"), "");
+    ctx.frame.remove();
+  }
+
+  async function main() {
+    try {
+      await testNavigation();
+      await testExercise();
+      await testBadCode();
+      await testQuiz();
+      await testProjectStep();
+      await testLessonAndTheme();
+      await testGuide();
+      await testSidebar();
+      await testSidebarMobile();
+    } catch (e) {
+      log("CRASH|" + (e && e.message ? e.message : e));
+    }
+    var fails = lines.filter(function (l) { return l.indexOf("FAIL|") === 0 || l.indexOf("CRASH|") === 0; }).length;
+    log("INTERACTIONS|tests=" + lines.length + " fails=" + fails);
+  }
+
+  main();
+})();
+</script>
+
+
+</body></html>

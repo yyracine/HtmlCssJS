@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Formation Web · HTML, CSS & JavaScript</title>
+<meta name="description" content="Apprentissage interactif du HTML, du CSS et du JavaScript : cours détaillés, exercices progressifs corrigés, quiz et projet final guidé." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f17'/%3E%3Cpath d='M20 22 L10 32 L20 42' stroke='%2338bdf8' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M44 22 L54 32 L44 42' stroke='%23f472b6' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M36 18 L28 46' stroke='%23fbbf24' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/css/app.css" />
+</head>
+<body>
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar" aria-label="Navigation de la formation">
+    <a class="brand" href="#/">
+      <span class="brand__mark" aria-hidden="true">&lt;/&gt;</span>
+      <span class="brand__text">
+        <strong>Formation Web</strong>
+        <small>HTML · CSS · JavaScript</small>
+      </span>
+    </a>
+    <div class="sidebar__progress" id="sidebar-progress"></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sidebar__foot">
+      <button class="btn btn--ghost btn--block" id="theme-toggle" type="button" aria-pressed="false">
+        <span class="icon" data-icon="moon"></span><span class="theme-label">Thème sombre</span>
+      </button>
+      <p class="sidebar__hint">Progression enregistrée dans ce navigateur.</p>
+    </div>
+  </aside>
+
+  <div class="scrim" id="scrim" hidden></div>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="btn btn--icon topbar__burger" id="menu-toggle" type="button"
+              aria-label="Masquer le menu" aria-controls="sidebar" aria-expanded="true" title="Masquer le menu">
+        <span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="M15.5 9.5 13 12l2.5 2.5"/></svg></span>
+      </button>
+      <nav class="crumbs" id="crumbs" aria-label="Fil d'Ariane"></nav>
+      <div class="topbar__spacer"></div>
+      <a class="btn btn--soft topbar__resume" id="resume-link" href="#/" hidden>
+        <span class="icon" data-icon="play"></span><span>Reprendre</span>
+      </a>
+      <button class="btn btn--icon" id="theme-toggle-top" type="button" aria-label="Changer de thème">
+        <span class="icon" data-icon="moon"></span>
+      </button>
+    </header>
+
+    <main id="view" class="view" tabindex="-1"></main>
+
+    <footer class="footer">
+      <p>Formation Web — HTML, CSS &amp; JavaScript. Cours, exercices corrigés, quiz et projet final.</p>
+      <p class="footer__sub">Fonctionne hors ligne · aucune donnée envoyée · progression locale.</p>
+    </footer>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+<script src="assets/js/ui.js"></script>
+<script src="assets/js/store.js"></script>
+<script src="assets/js/render.js"></script>
+<script src="assets/js/editor.js"></script>
+<script src="content/meta.js"></script>
+<script src="content/module-html.js"></script>
+<script src="content/module-css.js"></script>
+<script src="content/module-js.js"></script>
+<script src="content/project.js"></script>
+<script src="content/guide.js"></script>
+<script src="assets/js/views.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

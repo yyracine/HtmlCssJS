@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="utf-8">
+<title>Self-test — Formation Web</title>
+<style>
+  body { font-family: ui-monospace, Consolas, monospace; font-size: 13px; background: #0b0f17; color: #dbe4f5; padding: 16px; }
+  #out { white-space: pre-wrap; }
+  .ok { color: #34d399; }
+  .ko { color: #fb7185; }
+  .warn { color: #fbbf24; }
+</style>
+</head>
+<body>
+<pre id="out">info|modules=3
+info|final-checks=31/31
+SUMMARY|modules=3 lessons=35 exercises=84 demos=26 checks=337 checkFails=0 renderErrors=0 blocksMissingType=0 starterTrivial=0</pre>
+
+<script src="../assets/js/ui.js"></script>
+<script src="../assets/js/store.js"></script>
+<script src="../assets/js/render.js"></script>
+<script src="../assets/js/editor.js"></script>
+<script src="../content/meta.js"></script>
+<script src="../content/module-html.js"></script>
+<script src="../content/module-css.js"></script>
+<script src="../content/module-js.js"></script>
+<script src="../content/project.js"></script>
+<script>
+(function () {
+  "use strict";
+  var out = document.getElementById("out");
+  var lines = [];
+  function log(kind, text) { lines.push(kind + "|" + text); out.textContent = lines.join("\n"); }
+
+  function checksInFrame(code, checks) {
+    return new Promise(function (resolve) {
+      if (!checks || !checks.length) { resolve([]); return; }
+      var frame = document.createElement("iframe");
+      frame.style.cssText = "position:absolute;left:-9999px;top:0;width:700px;height:500px;border:0";
+      var settled = false;
+      frame.onload = function () {
+        if (settled) return;
+        settled = true;
+        setTimeout(function () {
+          var results;
+          try {
+            results = checks.map(function (expr) {
+              var r = FW.editor.evalCheck(expr, frame.contentDocument, frame.contentWindow);
+              return { expr: expr, pass: !!r.pass, error: r.error || null };
+            });
+          } catch (e) {
+            results = checks.map(function (expr) { return { expr: expr, pass: false, error: String(e) }; });
+          }
+          frame.remove();
+          resolve(results);
+        }, 40);
+      };
+      document.body.appendChild(frame);
+      frame.srcdoc = FW.editor.buildDoc(code.html || "", code.css || "", code.js || "");
+      setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        resolve(checks.map(function (expr) { return { expr: expr, pass: false, error: "timeout" }; }));
+        frame.remove();
+      }, 4000);
+    });
+  }
+
+  async function main() {
+    var modules = window.COURSE_MODULES || [];
+    var project = window.COURSE_PROJECT;
+    log("info", "modules=" + modules.length);
+
+    var lessons = 0, exercises = 0, renderErrors = 0, checkTotal = 0, checkFail = 0, trivial = 0;
+    var demoCount = 0, blockUnknown = 0;
+
+    // ---- rendu des blocs de chaque leçon
+    modules.forEach(function (m) {
+      (m.lessons || []).forEach(function (l) {
+        lessons++;
+        var wrapper = document.createElement("div");
+        FW.render.reset();
+        try {
+          wrapper.innerHTML = FW.render.blocks(l.content || []);
+          var demos = wrapper.querySelectorAll("[data-demo]");
+          demoCount += demos.length;
+          if (!wrapper.innerHTML.trim()) renderErrors++;
+        } catch (e) {
+          renderErrors++;
+          log("FAIL", "render " + l.id + " : " + e.message);
+        }
+        (l.content || []).forEach(function (b) { if (!b || !b.type) blockUnknown++; });
+      });
+    });
+
+    // ---- exercices : solution puis starter
+    for (var mi = 0; mi < modules.length; mi++) {
+      var m = modules[mi];
+      for (var li = 0; li < (m.lessons || []).length; li++) {
+        var lesson = m.lessons[li];
+        var exs = lesson.exercises || [];
+        for (var ei = 0; ei < exs.length; ei++) {
+          var ex = exs[ei];
+          exercises++;
+          var sol = ex.solution || { html: "", css: "", js: "" };
+          var res = await checksInFrame(sol, ex.checks || []);
+          checkTotal += res.length;
+          var fails = res.filter(function (r) { return !r.pass; });
+          checkFail += fails.length;
+          fails.forEach(function (r) {
+            log("FAIL", "check " + ex.id + " :: " + r.expr + (r.error ? "  [" + r.error + "]" : ""));
+          });
+
+          var starterRes = await checksInFrame(ex.starter || { html: "", css: "", js: "" }, ex.checks || []);
+          var starterPass = starterRes.filter(function (r) { return r.pass; }).length;
+          if (starterRes.length && starterPass === starterRes.length) {
+            trivial++;
+            log("WARN", "starter résout déjà l'exercice " + ex.id);
+          }
+        }
+      }
+    }
+
+    // ---- projet final
+    if (project) {
+      for (var si = 0; si < (project.steps || []).length; si++) {
+        var step = project.steps[si];
+        var sol2 = step.solution || { html: "", css: "", js: "" };
+        var res2 = await checksInFrame(sol2, step.checks || []);
+        checkTotal += res2.length;
+        res2.forEach(function (r) {
+          if (!r.pass) { checkFail++; log("FAIL", "step-check " + step.id + " :: " + r.expr + (r.error ? "  [" + r.error + "]" : "")); }
+        });
+        var st = await checksInFrame(step.starter || { html: "", css: "", js: "" }, step.checks || []);
+        if (st.length && st.every(function (r) { return r.pass; })) {
+          trivial++;
+          log("WARN", "starter résout déjà l'étape " + step.id);
+        }
+      }
+      var finalRes = await checksInFrame(project.final, (project.steps || []).reduce(function (all, s) { return all.concat(s.checks || []); }, []));
+      log("info", "final-checks=" + finalRes.filter(function (r) { return r.pass; }).length + "/" + finalRes.length);
+    }
+
+    log("SUMMARY", [
+      "modules=" + modules.length,
+      "lessons=" + lessons,
+      "exercises=" + exercises,
+      "demos=" + demoCount,
+      "checks=" + checkTotal,
+      "checkFails=" + checkFail,
+      "renderErrors=" + renderErrors,
+      "blocksMissingType=" + blockUnknown,
+      "starterTrivial=" + trivial
+    ].join(" "));
+  }
+
+  main().catch(function (e) {
+    log("CRASH", e && e.message ? e.message : String(e));
+  });
+})();
+</script>
+
+
+</body></html>

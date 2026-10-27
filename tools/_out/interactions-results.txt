@@ -1,0 +1,34 @@
+﻿OK|navigation: liens de modules|
+OK|stockage: localStorage disponible|thÃ¨me=dark
+OK|accueil: 3 cartes de module|cartes=3
+OK|exercice: vÃ©rification du corrigÃ©|pass=3/3 fail=0
+OK|exercice: progression enregistrÃ©e|exerciseDone=true
+OK|exercice: aperÃ§u live alimentÃ©|
+OK|exercice: numÃ©ros de ligne masquables|block / none / block
+OK|exercice: brouillon mÃ©morisÃ©|
+OK|exercice: code incomplet refusÃ©|fail=3
+OK|quiz: correction affichÃ©e|
+OK|quiz: score parfait|12/12
+OK|quiz: textes de correction|12/12
+OK|quiz: score affichÃ©|
+OK|projet: vÃ©rification de l'Ã©tape|pass=5/5
+OK|leÃ§on: marquage terminÃ©|
+OK|thÃ¨me: bascule clair/sombre|dark -> light
+OK|thÃ¨me: prÃ©fÃ©rence mÃ©morisÃ©e|light
+OK|guide: sections affichÃ©es|12/12
+OK|guide: sommaire cliquable|12/12
+OK|guide: sommaire n'Ã©crase pas la route|#/guide
+OK|guide: contenu rÃ©digÃ©|caractÃ¨res=21211
+OK|guide: repÃ¨res chiffrÃ©s|stats=4
+OK|guide: entrÃ©e dans la navigation|
+OK|menu: visible au chargement (bureau)|
+OK|menu: repliÃ© aprÃ¨s clic|largeur=1
+OK|menu: repli mÃ©morisÃ©|true
+OK|menu: bouton annonce l'Ã©tat|Afficher le menu
+OK|menu: rÃ©ouvert aprÃ¨s second clic|largeur=272
+OK|menu: Ã©tat dÃ©pliÃ© mÃ©morisÃ©|false
+OK|menu: liens toujours prÃ©sents|
+OK|menu mobile: fermÃ© au chargement|
+OK|menu mobile: s'ouvre au clic|
+OK|menu mobile: se ferme via le voile|
+INTERACTIONS|tests=33 fails=0

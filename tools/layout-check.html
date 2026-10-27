@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Audit de mise en page — Formation Web</title>
+<style>
+  body { font-family: ui-monospace, Consolas, monospace; font-size: 12px; margin: 0; background: #0b0f17; color: #dbe4f5; }
+  #out { white-space: pre-wrap; padding: 12px; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<script>
+(function () {
+  "use strict";
+  var out = document.getElementById("out");
+  var lines = [];
+  function log(text) { lines.push(text); out.textContent = lines.join("\n"); }
+
+  var ROUTES = [
+    { hash: "#/", name: "accueil", expect: [".hero__title", ".module-card", ".grid--3"] },
+    { hash: "#/module/html", name: "module-html", expect: [".lesson-row", ".goals", ".hero"] },
+    { hash: "#/module/css", name: "module-css", expect: [".lesson-row", ".card"] },
+    { hash: "#/lesson/css-06", name: "lecon-css", expect: [".blk--p", ".blk--code", ".code-card"] },
+    { hash: "#/lesson/js-08", name: "lecon-js", expect: [".blk--demo", ".demo-card", ".callout"] },
+    { hash: "#/exercise/html-ex-05", name: "exercice", expect: [".playground", "textarea", ".preview iframe"] },
+    { hash: "#/exercise/js-ex-07", name: "exercice-js", expect: [".playground", ".preview iframe"] },
+    { hash: "#/quiz/js", name: "quiz", expect: [".question", "input[type=radio]"] },
+    { hash: "#/projet", name: "projet", expect: [".stepper__item", ".rubric li", ".instructions li"] },
+    { hash: "#/guide", name: "guide", expect: [".guide-section", ".guide-section h2"] },
+    { hash: "#/progression", name: "progression", expect: [".ring svg", ".badge-card", ".stat"] }
+  ];
+
+  var VIEWPORTS = [
+    { name: "desktop", w: 1440, h: 980 },
+    { name: "tablette", w: 900, h: 900 },
+    { name: "mobile", w: 390, h: 844 }
+  ];
+
+  function clipped(el) {
+    var node = el.parentElement;
+    while (node && node !== document.body) {
+      var ox = window.getComputedStyle(node).overflowX;
+      if (ox === "auto" || ox === "scroll" || ox === "hidden") return true;
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  function describe(el) {
+    var cls = (el.className || "").toString().split(/\s+/).filter(Boolean).slice(0, 2).join(".");
+    return el.tagName.toLowerCase() + (cls ? "." + cls : "");
+  }
+
+  function overflowers(doc, win, vw) {
+    var found = [];
+    var nodes = doc.querySelectorAll("#view *");
+    for (var i = 0; i < nodes.length && found.length < 6; i++) {
+      var el = nodes[i];
+      var style = win.getComputedStyle(el);
+      if (style.display === "none" || style.position === "fixed" || style.position === "absolute") continue;
+      var rect = el.getBoundingClientRect();
+      if (rect.width === 0) continue;
+      if (rect.right > vw + 2 && !clipped(el)) {
+        found.push(describe(el) + " right=" + Math.round(rect.right) + "w=" + Math.round(rect.width));
+      }
+    }
+    return found;
+  }
+
+  function audit(frame, route, viewport) {
+    var win = frame.contentWindow;
+    var doc = frame.contentDocument;
+    var label = viewport.name + " " + route.name;
+    var vw = win.innerWidth;
+    var issues = [];
+
+    if (doc.documentElement.scrollWidth > vw + 2) {
+      issues.push("overflow-x " + doc.documentElement.scrollWidth + "px>" + vw + "px");
+      overflowers(doc, win, vw).forEach(function (item) { issues.push("coupable " + item); });
+    }
+
+    var text = doc.body.textContent || "";
+    if (text.indexOf("Erreur de rendu") >= 0) issues.push("erreur de rendu JS");
+    if (text.indexOf("Introuvable") >= 0) issues.push("route introuvable");
+
+    var missing = [];
+    route.expect.forEach(function (sel) {
+      var els = doc.querySelectorAll(sel);
+      var visible = false;
+      for (var i = 0; i < els.length; i++) {
+        var r = els[i].getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) { visible = true; break; }
+      }
+      if (!visible) missing.push(sel);
+    });
+    if (viewport.w >= 1080 && (route.name.indexOf("lecon") === 0 || route.name === "guide")) {
+      var toc = doc.querySelector("#toc, .toc");
+      if (!toc || toc.getBoundingClientRect().width === 0) missing.push("sommaire latéral (desktop)");
+    }
+    if (missing.length) issues.push("absents: " + missing.join(", "));
+
+    var view = doc.querySelector("#view");
+    if (!view || view.textContent.trim().length < 40) issues.push("contenu principal vide");
+
+    var bodySize = parseFloat(win.getComputedStyle(doc.body).fontSize);
+    if (bodySize < 14) issues.push("font-size body " + bodySize + "px");
+
+    var sidebar = doc.querySelector(".sidebar");
+    if (sidebar) {
+      var rect = sidebar.getBoundingClientRect();
+      var offscreen = rect.right <= 1 || rect.left >= vw - 1;
+      if (viewport.w > 900 && (offscreen || rect.width < 200)) issues.push("sidebar non visible (desktop)");
+      if (viewport.w <= 860 && !offscreen) issues.push("sidebar ouverte en mobile");
+      if (viewport.w <= 860 && !doc.querySelector("#menu-toggle") ) issues.push("bouton menu absent");
+    } else {
+      issues.push("sidebar absente");
+    }
+
+    var frameEl = doc.querySelector(".preview iframe");
+    if (frameEl) {
+      var fr = frameEl.getBoundingClientRect();
+      if (fr.height < 120) issues.push("aperçu trop court " + Math.round(fr.height) + "px");
+      var ta = doc.querySelector(".editor__input");
+      if (ta) {
+        var tr = ta.getBoundingClientRect();
+        if (tr.height < 100) issues.push("éditeur trop court " + Math.round(tr.height) + "px");
+        var hl = doc.querySelector(".editor__highlight");
+        if (hl) {
+          var hr = hl.getBoundingClientRect();
+          if (Math.abs(hr.width - tr.width) > 2) issues.push("désalignement surligneur");
+        }
+      }
+    }
+
+    var title = doc.querySelector(".hero__title, h1");
+    if (title) {
+      var color = win.getComputedStyle(title).color;
+      if (color === "rgba(0, 0, 0, 0)" || color === "transparent") issues.push("titre transparent");
+    }
+
+    log((issues.length ? "FAIL" : "OK") + "|" + label + "|" + (issues.length ? issues.join(" ; ") : "bon"));
+  }
+
+  function waitForContent(doc, done) {
+    var tries = 0;
+    (function poll() {
+      var view = doc && doc.querySelector("#view");
+      var ready = view && view.textContent.trim().length > 40;
+      if (ready || tries++ > 40) { done(); return; }
+      setTimeout(poll, 100);
+    })();
+  }
+
+  function nextFrame(route, viewport) {
+    return new Promise(function (resolve) {
+      var frame = document.createElement("iframe");
+      frame.style.cssText = "position:fixed;left:-99999px;top:0;border:0;width:" + viewport.w + "px;height:" + viewport.h + "px";
+      var settled = false;
+      frame.onload = function () {
+        if (settled) return;
+        settled = true;
+        waitForContent(frame.contentDocument, function () {
+          setTimeout(function () {
+            try { audit(frame, route, viewport); }
+            catch (e) { log("FAIL|" + viewport.name + " " + route.name + "|exception " + e.message); }
+            frame.remove();
+            resolve();
+          }, 250);
+        });
+      };
+      document.body.appendChild(frame);
+      frame.src = "../index.html" + route.hash;
+      setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        log("FAIL|" + viewport.name + " " + route.name + "|délai dépassé");
+        frame.remove();
+        resolve();
+      }, 9000);
+    });
+  }
+
+  async function main() {
+    for (var vi = 0; vi < VIEWPORTS.length; vi++) {
+      for (var ri = 0; ri < ROUTES.length; ri++) {
+        await nextFrame(ROUTES[ri], VIEWPORTS[vi]);
+      }
+    }
+    var fails = lines.filter(function (l) { return l.indexOf("FAIL|") === 0; }).length;
+    log("LAYOUT|pages=" + (VIEWPORTS.length * ROUTES.length) + " fails=" + fails);
+  }
+
+  main().catch(function (e) { log("CRASH|" + e.message); });
+})();
+</script>
+</body>
+</html>
