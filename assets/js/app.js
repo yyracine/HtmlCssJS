@@ -317,6 +317,19 @@
     applySidebar();
     bindGlobal();
     render();
+    registerServiceWorker();
+  }
+
+  function registerServiceWorker() {
+    // Service worker = installation PWA + mode hors ligne.
+    // Indisponible sur file:// ou sur les navigateurs qui ne le supportent pas.
+    if (!("serviceWorker" in navigator)) return;
+    if (location.protocol !== "https:" && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") return;
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {
+        /* échec silencieux : l'app fonctionne juste sans installation PWA */
+      });
+    });
   }
 
   FW.app = {
